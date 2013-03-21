@@ -23,20 +23,30 @@ import com.kayrnt.android.stringstool.utils.ParserUtils;
 public class Main {
 
 	static ArrayList<AndroidStringRessource> stringsFile;
+	static Unmarshaller unmarshaller;
 	static Marshaller marshaller;
-	final static ArrayList<Thread> threads = new ArrayList<Thread>();
+	static long start;
 
 	public static void main(String[] args)
 	{
+
+		String path = null;
+		if(args[0] == null) {
+			//System.out.println("No path provided.\nPlease enter an absolute or a relative path to the root of the Android project.");
+			return;
+		}
+		else {
+			path = args[0];
+		}
+
+		start = System.currentTimeMillis();
 		stringsFile = new ArrayList<AndroidStringRessource>();
-		File file = new File("res");
+		File file = new File(path+"res");
 		try
 		{
-			long start = System.currentTimeMillis();
+			unmarshaller = JAXBContext.newInstance(ResourcesElement.class).createUnmarshaller();
 			visitAllFiles(file, null);
 			syncStrings();
-			closeAndroidXMLStrings();
-			System.out.println("time consumed :"+(System.currentTimeMillis()-start));
 		}
 		catch(Exception e){
 			System.out.print("exception : "+e.getCause().getMessage());
@@ -47,28 +57,16 @@ public class Main {
 	private static void readFile(File file, String parent) throws Exception
 	{
 
-		//System.out.println("file : "+file.exists());
-		//System.out.println("file : "+file.getAbsolutePath());
-
 		ResourcesElement adr = new ResourcesElement();
 
 		String fileTransformed = ParserUtils.getString(file);
 		//System.out.println(fileTransformed);
-		adr = parse(fileTransformed,ResourcesElement.class);
+		adr = ResourcesElement.class.cast(unmarshaller.unmarshal(new StringReader(fileTransformed)));
+		System.out.println("unmarshaller...");
 		//System.out.println("res size : "+adr.string.size());
 		stringsFile.add(new AndroidStringRessource(file,adr));
-		//		for(int i = 0; i < adr.string.size(); i++) {
-		//			System.out.println(adr.string.get(i));
-		//		}
-
 	}
 
-	private static <T> T parse(String str, Class<T> classToInstantiate) throws JAXBException {
-		System.out.println("parsing...");
-		Unmarshaller unmarshaller = JAXBContext.newInstance(classToInstantiate).createUnmarshaller();
-		System.out.println("unmarshaller...");
-		return classToInstantiate.cast(unmarshaller.unmarshal(new StringReader(str)));
-	}
 
 
 	// Process only files under dir
@@ -135,19 +133,15 @@ public class Main {
 			current.setParts(new String[standardStringsSize]);
 		}
 
-
 		//Now iterating on its values
-
-		ExecutorService pool;
-		pool = Executors.newFixedThreadPool(6);
-//		ListeningExecutorService service = MoreExecutors.listeningDecorator(pool);
+		final ExecutorService pool;
+		pool = Executors.newCachedThreadPool();
 		for(int i = 0; i < standardStrings.size(); i++) {
 			final StringElement currentElement = standardStrings.get(i);
 			pool.execute(new ComparingHandler(currentElement, i));
-//			threads.add(currentThread);
-//			currentThread.start();
 		}
 
+		//Callable that will be used when every string is processed
 		ArrayList<Callable<Void>> callables = new ArrayList<Callable<Void>>();
 		callables.add(new Callable<Void>() {
 
@@ -155,18 +149,19 @@ public class Main {
 			public Void call() throws Exception {
 				Main.mergeStrings();
 				Main.closeAndroidXMLStrings();
+				System.out.println("time consumed :"+(System.currentTimeMillis()-start));
+				pool.shutdown();
 				return null;
 			}
 		});
-		
+
 		try {
 			pool.invokeAll(callables);
 		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		
+
+
 
 	}
 
@@ -177,7 +172,6 @@ public class Main {
 			//It's a comment so we just rename it and print it properly
 			if(stringElement.name.startsWith("__comment_")) {
 				parts[position] = "<!-- "+stringElement.text+" -->\n";
-				System.out.println("comment found !");
 			} else {
 				//lets search it...
 				boolean found = false;
@@ -188,9 +182,9 @@ public class Main {
 						found = true;
 						parts[position] = "<string name=\""+currentString.name+"\">"+currentString.text+"</string>\n";
 						//System.out.println("postion :"+parts[position]);
-//						synchronized (stringsFile) {
-//							currentList.remove(j);
-//						}
+						//						synchronized (stringsFile) {
+						//							currentList.remove(j);
+						//						}
 						break;
 					}
 				}
@@ -205,15 +199,12 @@ public class Main {
 	static void mergeStrings() {
 		for(int i = 0; i < stringsFile.size(); i++) {
 			AndroidStringRessource current = stringsFile.get(i);
-			//StringBuilder builder = new StringBuilder();
-			String finalString = "";
+			StringBuilder builder = new StringBuilder();
 			String[] parts = current.getParts();
 			for(int j = 0; j < parts.length; j++) {
-				//builder.append(parts[j]);
-				finalString += parts[j];
+				builder.append(parts[j]);
 			}
-			//			current.setTransformed(builder.toString());
-			current.setTransformed(finalString);
+			current.setTransformed(builder.toString());
 		}
 	}
 

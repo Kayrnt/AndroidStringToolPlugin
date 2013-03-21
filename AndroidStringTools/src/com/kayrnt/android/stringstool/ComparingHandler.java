@@ -16,11 +16,6 @@ public class ComparingHandler implements Runnable{
 	@Override
 	public void run() {
 		Main.checkElementIsInOtherStringsXML(element, position);
-		Main.threads.remove(this);
-		if(Main.threads.isEmpty()) {
-			Main.mergeStrings();
-			Main.closeAndroidXMLStrings();
-		}
 	}
 
 }
