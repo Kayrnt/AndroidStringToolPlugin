@@ -32,8 +32,8 @@ public class Main {
 	static Unmarshaller unmarshaller;
 	static Marshaller marshaller;
 	static long start;
-	static boolean backup = true;
-	static boolean revert = false;
+	public static boolean backup = true;
+	public static boolean revert = false;
 
 	public static void main(String[] args)
 	{
@@ -50,7 +50,7 @@ public class Main {
 					revert = true;
 				}
 				else if(args[i] != null) {
-					path += args[0];
+					path = args[i];
 				}
 			}
 		}
@@ -65,8 +65,7 @@ public class Main {
 			System.out.println("Resources of project directory not found...");
 			return;
 		}
-		try
-		{
+		try{
 			//prepare XML reader
 			unmarshaller = JAXBContext.newInstance(ResourcesElement.class).createUnmarshaller();
 			visitAllFiles(file);
@@ -90,7 +89,9 @@ public class Main {
 			//checking to revert else for the default res/values/strings.xml who isn't modified or saved
 			if(!current.getAbsolutePath().endsWith("res/values/strings.xml")) {
 				//replace the file by its backup if found else throws an error in the log
-			copyFileTo(new File(current.getAbsolutePath()+".backup"), current);
+				String valueFolderName = current.getParentFile().getName();
+				File projectFolder = current.getParentFile().getParentFile().getParentFile();
+				copyFileTo(new File(projectFolder.getAbsolutePath()+"/backup/"+valueFolderName+"/strings.xml"), current);
 			}
 		}
 		System.out.println("Revert done succesfully");
@@ -216,10 +217,16 @@ public class Main {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private static void backupFileIfRequired(File file) {
 		//adding .backup to the name ... hopefully it won't be a too bad idea since I don't do any check
-		File to = new File(file.getAbsolutePath()+".backup");
+		String valueFolderName = file.getParentFile().getName();
+		File projectFolder = file.getParentFile().getParentFile().getParentFile();
+		File to = new File(projectFolder.getAbsolutePath()+"/backup/"+valueFolderName+"/strings.xml");
+		File parent = to.getParentFile();
+		if(!parent.exists() && !parent.mkdirs()){
+			throw new IllegalStateException("Couldn't create dir: " + parent);
+		}
 		copyFileTo(file, to);
 		System.out.println("backup done for element : "+file.getAbsolutePath());
 	}
@@ -315,6 +322,11 @@ public class Main {
 				System.err.println("Error: " + e.getMessage());
 			}
 		}
+	}
+
+	public static void reset() {
+		Main.backup = true;
+		Main.revert = false;
 	}
 
 }
