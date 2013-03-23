@@ -1,7 +1,13 @@
 package com.kayrnt.android.stringstool;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,48 +32,89 @@ public class Main {
 	static Unmarshaller unmarshaller;
 	static Marshaller marshaller;
 	static long start;
+	static boolean backup = true;
+	static boolean revert = false;
 
 	public static void main(String[] args)
 	{
-
 		String path = null;
-		if(args[0] == null) {
-			//System.out.println("No path provided.\nPlease enter an absolute or a relative path to the root of the Android project.");
-			return;
+		// checking for a path or an option
+		if(args.length > 0) {
+			//looking for backup option
+			for(int i = 0; i < args.length; i++) {
+				if(args[i].equals("-nobackup")) {
+					backup = false;
+				}
+				//allow to revert to the backup files ;)
+				else if(args[i].equals("-revert")) {
+					revert = true;
+				}
+				else if(args[i] != null) {
+					path += args[0];
+				}
+			}
 		}
-		else {
-			path = args[0];
-		}
-
+		//appending ressources folder
+		String resPath = (path == null ? "" : path+"/") +"res";
+		resPath = resPath.replaceAll("//", "/");
+		System.out.println("searching at path : "+resPath);
 		start = System.currentTimeMillis();
 		stringsFile = new ArrayList<AndroidStringRessource>();
-		File file = new File(path+"res");
+		File file = new File(resPath);
+		if(!file.exists()) {
+			System.out.println("Resources of project directory not found...");
+			return;
+		}
 		try
 		{
+			//prepare XML reader
 			unmarshaller = JAXBContext.newInstance(ResourcesElement.class).createUnmarshaller();
-			visitAllFiles(file, null);
-			syncStrings();
+			visitAllFiles(file);
+
+			//time to sync !
+			if(revert) {
+				revertStrings();
+			} else {
+				syncStrings();
+			}
 		}
 		catch(Exception e){
 			System.out.print("exception : "+e.getCause().getMessage());
 		}
 	}
 
+	//function to revertStrings
+	private static void revertStrings() {
+		for(int i = 0; i < stringsFile.size(); i++) {
+			File current = stringsFile.get(i).getFile();
+			//checking to revert else for the default res/values/strings.xml who isn't modified or saved
+			if(!current.getAbsolutePath().endsWith("res/values/strings.xml")) {
+				//replace the file by its backup if found else throws an error in the log
+			copyFileTo(new File(current.getAbsolutePath()+".backup"), current);
+			}
+		}
+		System.out.println("Revert done succesfully");
+	}
+
+
 	//Parse file and init our structures
 	private static void readFile(File file, String parent) throws Exception
 	{
 
 		ResourcesElement adr = new ResourcesElement();
-
 		String fileTransformed = ParserUtils.getString(file);
 		//System.out.println(fileTransformed);
 		adr = ResourcesElement.class.cast(unmarshaller.unmarshal(new StringReader(fileTransformed)));
-		System.out.println("unmarshaller...");
+		System.out.println("reading : "+file.getParent()+"/"+file.getName());
 		//System.out.println("res size : "+adr.string.size());
 		stringsFile.add(new AndroidStringRessource(file,adr));
 	}
 
 
+	//no args version of files process because we are at the root
+	private static void visitAllFiles(File dir) throws Exception {
+		visitAllFiles(dir, null);
+	}
 
 	// Process only files under dir
 	private static void visitAllFiles(File dir, String parent) throws Exception {
@@ -82,6 +129,7 @@ public class Main {
 	}
 
 	private static void readStrings(File file, String parent) throws Exception {
+		//we read the file only if it's a strings.xml
 		if(file.getName().equals("strings.xml")) {
 			readFile(file, parent);
 		}
@@ -96,6 +144,8 @@ public class Main {
 			if(current.getFile().getAbsolutePath().endsWith("res/values/strings.xml")) {
 				//reference file
 				standardXML = current;
+			} else {
+				backupFileIfRequired(current.getFile());
 			}
 		}
 
@@ -147,24 +197,61 @@ public class Main {
 
 			@Override
 			public Void call() throws Exception {
+				//multithread forced to put strings in right place to be merged
 				Main.mergeStrings();
+				//writing final files
 				Main.closeAndroidXMLStrings();
-				System.out.println("time consumed :"+(System.currentTimeMillis()-start));
+				//benchmark !
+				System.out.println("time consumed :"+(System.currentTimeMillis()-start)+" ms");
+				//time to quit ;)
 				pool.shutdown();
 				return null;
 			}
 		});
 
+		//callable set up... time to invoke !
 		try {
 			pool.invokeAll(callables);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-
-
-
+	}
+	
+	private static void backupFileIfRequired(File file) {
+		//adding .backup to the name ... hopefully it won't be a too bad idea since I don't do any check
+		File to = new File(file.getAbsolutePath()+".backup");
+		copyFileTo(file, to);
+		System.out.println("backup done for element : "+file.getAbsolutePath());
 	}
 
+	private static void copyFileTo(File from, File to) {
+
+		try{
+			InputStream in = new FileInputStream(from);
+
+			//For Overwrite the file.
+			OutputStream out = new FileOutputStream(to);
+
+			//buffer writings... yey
+			byte[] buf = new byte[1024];
+			int len;
+			while ((len = in.read(buf)) > 0){
+				out.write(buf, 0, len);
+			}
+			in.close();
+			out.close();
+		}
+		catch(FileNotFoundException ex){
+			System.out.println(ex.getMessage() + " in the specified directory.");
+			System.exit(0);
+		}
+		catch(IOException e){
+			System.out.println(e.getMessage());  
+		}
+	}
+
+
+	//function to compare an element in other files
 	static void checkElementIsInOtherStringsXML(StringElement stringElement, int position) {
 		for(int i = 0; i < stringsFile.size(); i++) {
 			List<StringElement> currentList = stringsFile.get(i).getResources().string;
@@ -176,12 +263,14 @@ public class Main {
 				//lets search it...
 				boolean found = false;
 				for(int j = 0; j < currentList.size(); j++) {
-					StringElement currentString = currentList.get(j);
+					StringElement currentString = null;
+					//					synchronized (stringsFile) {
+					currentString = currentList.get(j);
+					//					}
 					//if found we print and break
 					if(currentString.name.equals(stringElement.name)) {
 						found = true;
 						parts[position] = "<string name=\""+currentString.name+"\">"+currentString.text+"</string>\n";
-						//System.out.println("postion :"+parts[position]);
 						//						synchronized (stringsFile) {
 						//							currentList.remove(j);
 						//						}
@@ -196,6 +285,7 @@ public class Main {
 		}
 	}
 
+	//merging function
 	static void mergeStrings() {
 		for(int i = 0; i < stringsFile.size(); i++) {
 			AndroidStringRessource current = stringsFile.get(i);
@@ -204,7 +294,8 @@ public class Main {
 			for(int j = 0; j < parts.length; j++) {
 				builder.append(parts[j]);
 			}
-			current.setTransformed(builder.toString());
+			//put the merged string of the xml content into the structure
+			current.setTransformed("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n"+ builder.toString()+"</resources>");
 		}
 	}
 
@@ -212,13 +303,10 @@ public class Main {
 	static void closeAndroidXMLStrings() {
 		//close the strings resources and write
 		for(int i = 0; i < stringsFile.size(); i++) {
-			//append xml base
-			stringsFile.get(i).setTransformed("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n"+stringsFile.get(i).getTransformed()+"</resources>");
-			//System.out.println(stringsFile.get(i).getTransformed());
 			// file
 			try{
 				// Create file 
-				FileWriter fstream = new FileWriter(stringsFile.get(i).getFile().getParent()+"/values_new.xml");
+				FileWriter fstream = new FileWriter(stringsFile.get(i).getFile());
 				BufferedWriter out = new BufferedWriter(fstream);
 				out.write(stringsFile.get(i).getTransformed());
 				//Close the output stream
