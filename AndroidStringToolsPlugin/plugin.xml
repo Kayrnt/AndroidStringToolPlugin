@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+  
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            locationURI="popup:org.eclipse.jdt.ui.PackageExplorer">
+         <command
+               commandId="com.kayrnt.android.stringtool.plugin"
+               label="Sync strings.xml"
+               style="push">
+            <visibleWhen
+                  checkEnabled="false">
+               <with
+                     variable="activeMenuSelection">
+                  <iterate
+                        ifEmpty="false"
+                        operator="or">
+                     <adapt
+                           type="org.eclipse.jdt.core.IJavaProject">
+                        <test property="org.eclipse.jdt.core.isInJavaProjectWithNature" value="com.android.ide.eclipse.adt.AndroidNature"/>
+                     </adapt>
+                  </iterate>
+               </with>
+            </visibleWhen>
+         </command>
+      </menuContribution>
+   </extension>
+   
+   
+  <extension point="org.eclipse.ui.commands">
+    <command defaultHandler="com.kayrnt.android.stringtool.handlers.StringsHandler"
+      id="com.kayrnt.android.stringtool.plugin" name="Sync">
+    </command>
+  </extension>
+
+</plugin> 
