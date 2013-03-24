@@ -7,17 +7,20 @@ What's for ?
 
 This is an Eclipse plugin designed to synchronize your strings.xml across localization :
 
-It reads your res/values.xml$
-It compare all its ids & comments and add missing ids to your other localization
+It reads your res/values.xml It compares all its ids & comments to add missing ids to your other localization
+
 Some features ?
 
-Backup by default at <ProjectFolder>/backup/ (checkbox to disable)
-Revert process from your backup
-Reorder your localized strings.xml as your main strings.xml
+Backup by default at /backup/ (checkbox to disable) Revert process from your backup Reorder your localized strings.xml as your main strings.xml
+
+How to use ?
+
+Right click on an Android Project and hit Sync strings.xml.
 
 About me ?
 
 http://kayrnt.wordpress.com/
+
 
 LICENCE :
 
