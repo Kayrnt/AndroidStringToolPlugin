@@ -11,7 +11,9 @@ It reads your res/values.xml It compares all its ids & comments to add missing i
 
 Some features ?
 
-Backup by default at /backup/ (checkbox to disable) Revert process from your backup Reorder your localized strings.xml as your main strings.xml
+Backup by default at /backup/ (checkbox to disable)
+Revert process from your backup
+Reorder your localized strings.xml as your main strings.xml
 
 How to use ?
 
